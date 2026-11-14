@@ -7,6 +7,6 @@
 /* Firebase online lobby */
 .match-actions{display:grid;gap:9px;margin-top:14px}.match-actions .menu-button{width:100%;text-align:center}.room-join{display:grid;grid-template-columns:1fr auto;gap:8px}.room-join input{min-width:0;padding:12px 10px;background:#071217;border:1px solid rgba(220,239,208,.22);color:#f3f5ef;font:700 14px 'DM Sans',sans-serif;letter-spacing:2px;text-transform:uppercase;outline:none}.room-join input:focus{border-color:var(--lime)}.room-panel{margin-top:13px;padding:13px;background:rgba(0,0,0,.25);border:1px solid rgba(201,243,106,.28)}.room-heading{display:flex;align-items:center;gap:10px;font-size:10px;color:#c1ccc3}.room-heading b{font-size:19px;letter-spacing:3px;color:var(--lime)}.room-heading button{margin-left:auto;padding:7px 10px;background:#ffffff12;border:1px solid #ffffff24;color:#fff;font-size:9px}.room-panel p,#match-feedback{font-size:11px;line-height:1.5;color:#c1ccc3}.room-panel .menu-button{width:100%;text-align:center;margin-top:7px}.room-panel .menu-button:disabled{opacity:.4;cursor:not-allowed}
 
-/* Lobby para hasta cuatro jugadores */
-.match-slots{grid-template-columns:repeat(4,minmax(0,1fr))}
+/* Lobby para dos jugadores */
+.match-slots{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media(max-width:520px){.match-slots{grid-template-columns:repeat(2,minmax(0,1fr))}}

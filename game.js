@@ -335,7 +335,7 @@ box(viewRig, [.22,.2,.42], sleeveMat, [-.34,-.55,-.52]); box(viewRig,[.22,.2,.42
 const fpGun = new THREE.Group(); fpGun.position.set(.08,-.29,-.78); viewRig.add(fpGun);
 box(fpGun,[.16,.17,.62],gunMat,[0,0,0]); box(fpGun,[.19,.2,.25],material('fpGunBody',0x45534a,.5,.4),[0,-.015,.12]);
 box(fpGun,[.075,.31,.12],gunMat,[0,-.2,-.02]); box(fpGun,[.075,.075,.34],gunMat,[0,.035,-.43]);
-// Tres puntos de aparición reservados para una sala de hasta 3 jugadores.
+// Puntos de aparición reservados para los modos de juego.
 const spawnPoints = [new THREE.Vector3(-4.2, 0, 0), new THREE.Vector3(0, 0, 0), new THREE.Vector3(4.2, 0, 0)];
 const spawnMarkers = [];
 spawnPoints.forEach((point, index) => {
@@ -570,83 +570,13 @@ function update(dt) {
 }
 
 
-// --- Firebase matchmaking (salas de 2 a 4 jugadores) ---
+// --- Firebase matchmaking (salas de 2 jugadores) ---
 const roomFeedback = (message) => { const el = $('match-feedback'); if (el) el.textContent = message; };
 const roomCode = () => Math.random().toString(36).slice(2, 8).toUpperCase();
 const roomPath = (id, child = '') => ref(database, `rooms/${id}${child ? `/${child}` : ''}`);
-let hostRotationTimer = null;
 let latestRoomState = null;
 
-function clearHostRotationTimer() {
-  if (hostRotationTimer) { clearTimeout(hostRotationTimer); hostRotationTimer = null; }
-}
-async function ensureAnonymousAuth() {
-  if (auth.currentUser) { currentUser = auth.currentUser; return currentUser; }
-  roomFeedback('Conectando con Firebase...');
-  const credential = await signInAnonymously(auth);
-  currentUser = credential.user;
-  return currentUser;
-}
-function occupiedRoomSlots(room) {
-  return [1,2,3,4].filter(n => !!room?.slots?.[n]);
-}
-function myRoomSlot(room) {
-  const found = Object.entries(room?.slots || {}).find(([, uid]) => uid === currentUser?.uid);
-  return found ? Number(found[0]) : 0;
-}
-async function rotatePublicHost(room) {
-  if (!currentRoomId || !currentUser || room?.public !== true || room.status !== 'waiting') return;
-  const occupied = occupiedRoomSlots(room);
-  if (occupied.length !== 4 || !room.fullAt) return;
-
-  const oldHost = room.hostUid || null;
-  if (!oldHost || oldHost !== currentUser.uid) return;
-  const history = room.hostHistory || {};
-  const candidates = occupied
-    .map(slot => room.slots[slot])
-    .filter(uid => uid && uid !== oldHost && !history[uid]);
-  if (!candidates.length) {
-    roomFeedback('Todos los demás jugadores ya fueron anfitriones en esta sala.');
-    return;
-  }
-
-  // El anfitrión nuevo se elige al azar. Nadie cambia de slot ni es expulsado.
-  const nextHost = candidates[Math.floor(Math.random() * candidates.length)];
-  await updateData(roomPath(currentRoomId, `hostHistory/${oldHost}`), true);
-  const result = await runTransaction(roomPath(currentRoomId, 'hostUid'), value => {
-    if (value !== oldHost) return;
-    return nextHost;
-  });
-  if (result.committed) {
-    await updateData(roomPath(currentRoomId), { hostRotationAt: Date.now() });
-    roomFeedback('Cambió el anfitrión. El jugador anterior sigue en la partida.');
-  }
-}
-function schedulePublicHostRotation(room) {
-  clearHostRotationTimer();
-  if (room.public !== true || room.status !== 'waiting' || occupiedRoomSlots(room).length !== 4 || !room.fullAt) return;
-  const baseTime = Number(room.hostRotationAt || room.fullAt);
-  const remaining = Math.max(0, baseTime + 15000 - Date.now());
-  hostRotationTimer = setTimeout(async () => {
-    try {
-      const snap = await get(roomPath(currentRoomId));
-      const latest = snap.val();
-      if (latest && latest.public === true && latest.status === 'waiting' && occupiedRoomSlots(latest).length === 4) {
-        await rotatePublicHost(latest);
-      }
-    } catch (error) { console.warn('No se pudo cambiar el anfitrión:', error); }
-  }, remaining);
-}
-async function maintainPublicFullTimer(room) {
-  if (room.public !== true || room.status !== 'waiting') return;
-  const count = occupiedRoomSlots(room).length;
-  const fullAtRef = roomPath(currentRoomId, 'fullAt');
-  if (count === 4 && !room.fullAt) {
-    await runTransaction(fullAtRef, value => value == null ? Date.now() : value);
-  } else if (count < 4 && room.fullAt) {
-    await updateData(roomPath(currentRoomId), { fullAt: null, hostRotationAt: null });
-  }
-}
+function clearHostRotationTimer() {}
 function renderRoom(room) {
   if (!room) { clearHostRotationTimer(); latestRoomState = null; roomFeedback('La sala ya no existe.'); resetRoomUI(); return; }
   latestRoomState = room;
@@ -658,25 +588,22 @@ function renderRoom(room) {
   const roomHeadingLabel = $('room-heading-label');
   if (roomHeadingLabel) roomHeadingLabel.textContent = isPublicRoom ? 'PARTIDA PÚBLICA' : 'SALA PRIVADA';
   const slots = $('room-slots');
-  slots.innerHTML = [1,2,3,4].map(n => {
+  slots.innerHTML = [1,2].map(n => {
     const uid = room.slots?.[n];
     const own = uid && uid === currentUser?.uid;
     const isHost = uid && uid === room.hostUid;
     return `<span>JUGADOR ${n}${isHost ? '<br>ANFITRIÓN' : ''}<br><b>${own ? 'VOS' : uid ? 'CONECTADO' : 'ESPERANDO'}</b></span>`;
   }).join('');
   const count = occupiedRoomSlots(room).length;
-  const full = count === 4;
   $('room-status').textContent = room.status === 'playing'
     ? 'PARTIDA INICIADA'
-    : `${count}/4 JUGADORES · MÍNIMO 2 PARA INICIAR${isPublicRoom && full ? ' · CAMBIO DE ANFITRIÓN EN 15 S' : ''}`;
+    : `${count}/2 JUGADORES · ${count < 2 ? 'ESPERANDO AL SEGUNDO JUGADOR' : 'LISTOS PARA INICIAR'}`;
   const wasHost = roomIsHost;
   roomIsHost = room.hostUid === currentUser?.uid;
   currentSlot = myRoomSlot(room) || currentSlot;
   if (!wasHost && roomIsHost) registerHostDisconnect(currentRoomId).catch(console.warn);
-  $('start-online').disabled = !roomIsHost || count < 2 || count > 4 || room.status !== 'waiting';
-  if (isPublicRoom && count === 4 && room.fullAt) schedulePublicHostRotation(room);
-  else clearHostRotationTimer();
-  if (isPublicRoom && room.status === 'waiting') maintainPublicFullTimer(room).catch(console.warn);
+  $('start-online').disabled = !roomIsHost || count < 2 || count > 2 || room.status !== 'waiting';
+  clearHostRotationTimer();
   if (room.status === 'playing' && !onlineStarted) startOnlineGame(room);
 }
 function watchRoom(id) {
@@ -705,9 +632,9 @@ async function createRoom(isPublic = false) {
     const id = roomCode();
     const room = {
       hostUid: currentUser.uid, public: isPublic, status: 'waiting',
-      createdAt: Date.now(), fullAt: null, hostRotationAt: null,
+      createdAt: Date.now(),
       hostHistory: {},
-      slots: { 1: currentUser.uid, 2: null, 3: null, 4: null }
+      slots: { 1: currentUser.uid, 2: null }
     };
     await set(roomPath(id), room);
     currentRoomId = id; currentSlot = 1; roomIsHost = true;
@@ -732,7 +659,7 @@ async function tryJoinRoom(id, expectedPublic) {
   // Cualquier espacio libre sirve. El slot identifica al jugador y no cambia
   // cuando cambia el rol de anfitrión.
   let joinedSlot = 0;
-  for (const slot of [1,2,3,4]) {
+  for (const slot of [1,2]) {
     const result = await runTransaction(roomPath(id, `slots/${slot}`), value => value == null ? currentUser.uid : undefined);
     if (result.committed) { joinedSlot = slot; break; }
   }
@@ -765,9 +692,6 @@ async function tryJoinRoom(id, expectedPublic) {
 
   freshSnap = await get(roomPath(id));
   freshRoom = freshSnap.val();
-  if (expectedPublic && occupiedRoomSlots(freshRoom).length === 4 && !freshRoom.fullAt) {
-    await updateData(roomPath(id), { fullAt: Date.now(), hostRotationAt: null });
-  }
   watchRoom(id);
   roomFeedback(roomIsHost
     ? 'Te uniste a la partida pública y sos el anfitrión.'
@@ -783,7 +707,7 @@ async function searchPublicMatch() {
     if (snap.exists()) {
       for (const [id, room] of Object.entries(snap.val())) {
         const count = occupiedRoomSlots(room).length;
-        if (room.public === true && room.status === 'waiting' && count < 4) {
+        if (room.public === true && room.status === 'waiting' && count < 2) {
           if (await tryJoinRoom(id, true)) return;
         }
       }
@@ -818,7 +742,6 @@ async function leaveRoom() {
       await updateData(roomPath(id, `hostHistory/${currentUser.uid}`), true);
       await onDisconnect(roomPath(id, 'hostUid')).cancel();
       await remove(roomPath(id, 'hostUid'));
-      await updateData(roomPath(id), { fullAt: null, hostRotationAt: null });
     } else if (wasHost && !wasPublic) {
       await onDisconnect(roomPath(id)).cancel();
       await remove(roomPath(id));
@@ -834,7 +757,7 @@ async function startOnlineMatch() {
     const count = occupiedRoomSlots(room).length;
     if (!room || room.status !== 'waiting') { roomFeedback('La sala ya no está esperando jugadores.'); return; }
     if (count < 2) { roomFeedback('Necesitás al menos 2 jugadores para iniciar.'); return; }
-    if (count > 4) { roomFeedback('La sala admite un máximo de 4 jugadores.'); return; }
+    if (count > 2) { roomFeedback('La sala admite un máximo de 2 jugadores.'); return; }
     await updateData(roomPath(currentRoomId), { status: 'playing', startedAt: Date.now() });
   } catch (error) { roomFeedback(`No se pudo iniciar: ${error.message}`); }
 }

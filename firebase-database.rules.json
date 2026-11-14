@@ -8,21 +8,21 @@
         ".write": "auth != null && ((!data.exists() && newData.child('hostUid').val() === auth.uid && newData.child('slots/1').val() === auth.uid) || (data.exists() && data.child('hostUid').val() === auth.uid && !newData.exists()))",
         "slots": {
           "$slot": {
-            ".write": "auth != null && ($slot === '1' || $slot === '2' || $slot === '3' || $slot === '4') && ((!data.exists() && newData.val() === auth.uid) || (data.val() === auth.uid && !newData.exists()))",
+            ".write": "auth != null && ($slot === '1' || $slot === '2') && ((!data.exists() && newData.val() === auth.uid) || (data.val() === auth.uid && !newData.exists()))",
             ".validate": "newData.isString()"
           }
         },
         "status": {
-          ".write": "auth != null && root.child('rooms').child($roomId).child('hostUid').val() === auth.uid && data.val() === 'waiting' && newData.val() === 'playing' && ((root.child('rooms').child($roomId).child('slots/1').exists() && root.child('rooms').child($roomId).child('slots/2').exists()) || (root.child('rooms').child($roomId).child('slots/1').exists() && root.child('rooms').child($roomId).child('slots/3').exists()) || (root.child('rooms').child($roomId).child('slots/1').exists() && root.child('rooms').child($roomId).child('slots/4').exists()) || (root.child('rooms').child($roomId).child('slots/2').exists() && root.child('rooms').child($roomId).child('slots/3').exists()) || (root.child('rooms').child($roomId).child('slots/2').exists() && root.child('rooms').child($roomId).child('slots/4').exists()) || (root.child('rooms').child($roomId).child('slots/3').exists() && root.child('rooms').child($roomId).child('slots/4').exists()))",
+          ".write": "auth != null && root.child('rooms').child($roomId).child('hostUid').val() === auth.uid && data.val() === 'waiting' && newData.val() === 'playing' && root.child('rooms').child($roomId).child('slots/1').exists() && root.child('rooms').child($roomId).child('slots/2').exists()",
           ".validate": "newData.val() === 'waiting' || newData.val() === 'playing'"
         },
         "hostUid": {
-          ".write": "auth != null && ((data.val() === auth.uid && !newData.exists()) || (root.child('rooms').child($roomId).child('public').val() === true && root.child('rooms').child($roomId).child('status').val() === 'waiting' && data.val() === auth.uid && (newData.val() === root.child('rooms').child($roomId).child('slots/1').val() || newData.val() === root.child('rooms').child($roomId).child('slots/2').val() || newData.val() === root.child('rooms').child($roomId).child('slots/3').val() || newData.val() === root.child('rooms').child($roomId).child('slots/4').val()) && (root.child('rooms').child($roomId).child('hostRotationAt').exists() || root.child('rooms').child($roomId).child('fullAt').exists()) && now >= (root.child('rooms').child($roomId).child('hostRotationAt').exists() ? root.child('rooms').child($roomId).child('hostRotationAt').val() : root.child('rooms').child($roomId).child('fullAt').val()) + 15000 && !root.child('rooms').child($roomId).child('hostHistory').child(newData.val()).exists()) || (root.child('rooms').child($roomId).child('public').val() === true && root.child('rooms').child($roomId).child('status').val() === 'waiting' && !data.exists() && (newData.val() === root.child('rooms').child($roomId).child('slots/1').val() || newData.val() === root.child('rooms').child($roomId).child('slots/2').val() || newData.val() === root.child('rooms').child($roomId).child('slots/3').val() || newData.val() === root.child('rooms').child($roomId).child('slots/4').val()) && newData.val() === auth.uid && !root.child('rooms').child($roomId).child('hostHistory').child(auth.uid).exists()))",
+          ".write": "auth != null && ((data.val() === auth.uid && !newData.exists()) || (root.child('rooms').child($roomId).child('public').val() === true && root.child('rooms').child($roomId).child('status').val() === 'waiting' && !data.exists() && (newData.val() === root.child('rooms').child($roomId).child('slots/1').val() || newData.val() === root.child('rooms').child($roomId).child('slots/2').val()) && newData.val() === auth.uid && !root.child('rooms').child($roomId).child('hostHistory').child(auth.uid).exists()))",
           ".validate": "newData.isString()"
         },
         "hostHistory": {
           "$uid": {
-            ".write": "auth != null && (root.child('rooms').child($roomId).child('hostUid').val() === auth.uid || (auth.uid === $uid && (root.child('rooms').child($roomId).child('slots/1').val() === auth.uid || root.child('rooms').child($roomId).child('slots/2').val() === auth.uid || root.child('rooms').child($roomId).child('slots/3').val() === auth.uid || root.child('rooms').child($roomId).child('slots/4').val() === auth.uid)))",
+            ".write": "auth != null && (root.child('rooms').child($roomId).child('hostUid').val() === auth.uid || (auth.uid === $uid && (root.child('rooms').child($roomId).child('slots/1').val() === auth.uid || root.child('rooms').child($roomId).child('slots/2').val() === auth.uid)))",
             ".validate": "newData.val() === true"
           }
         },
@@ -36,17 +36,9 @@
           ".write": "auth != null && root.child('rooms').child($roomId).child('hostUid').val() === auth.uid && root.child('rooms').child($roomId).child('status').val() === 'waiting' && newData.isNumber()",
           ".validate": "newData.isNumber()"
         },
-        "fullAt": {
-          ".write": "auth != null && (root.child('rooms').child($roomId).child('slots/1').val() === auth.uid || root.child('rooms').child($roomId).child('slots/2').val() === auth.uid || root.child('rooms').child($roomId).child('slots/3').val() === auth.uid || root.child('rooms').child($roomId).child('slots/4').val() === auth.uid)",
-          ".validate": "newData.isNumber() || !newData.exists()"
-        },
-        "hostRotationAt": {
-          ".write": "auth != null && (root.child('rooms').child($roomId).child('slots/1').val() === auth.uid || root.child('rooms').child($roomId).child('slots/2').val() === auth.uid || root.child('rooms').child($roomId).child('slots/3').val() === auth.uid || root.child('rooms').child($roomId).child('slots/4').val() === auth.uid)",
-          ".validate": "newData.isNumber() || !newData.exists()"
-        },
         "players": {
           "$uid": {
-            ".write": "auth != null && ((auth.uid === $uid && (root.child('rooms').child($roomId).child('slots/1').val() === auth.uid || root.child('rooms').child($roomId).child('slots/2').val() === auth.uid || root.child('rooms').child($roomId).child('slots/3').val() === auth.uid || root.child('rooms').child($roomId).child('slots/4').val() === auth.uid)) || (auth.uid === $uid && !newData.exists()))",
+            ".write": "auth != null && auth.uid === $uid && (root.child('rooms').child($roomId).child('slots/1').val() === auth.uid || root.child('rooms').child($roomId).child('slots/2').val() === auth.uid || !newData.exists())",
             ".validate": "!newData.exists() || (newData.hasChildren(['name','slot','position','yaw','pitch','updatedAt']) && newData.child('name').isString() && newData.child('slot').isNumber() && newData.child('position').hasChildren(['x','y','z']) && newData.child('position/x').isNumber() && newData.child('position/y').isNumber() && newData.child('position/z').isNumber() && newData.child('yaw').isNumber() && newData.child('pitch').isNumber() && newData.child('updatedAt').isNumber())"
           }
         }
