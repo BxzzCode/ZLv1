@@ -677,7 +677,7 @@ function renderRoom(room) {
   if (isPublicRoom && count === 4 && room.fullAt) schedulePublicHostRotation(room);
   else clearHostRotationTimer();
   if (isPublicRoom && room.status === 'waiting') maintainPublicFullTimer(room).catch(console.warn);
-  if (room.status === 'playing' && !running) startOnlineGame(room);
+  if (room.status === 'playing' && !onlineStarted) startOnlineGame(room);
 }
 function watchRoom(id) {
   if (roomUnsubscribe) roomUnsubscribe();
