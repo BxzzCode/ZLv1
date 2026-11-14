@@ -16,7 +16,7 @@
       <div class="menu-backdrop"></div>
       <div class="menu-content">
         <div class="eyebrow"><span class="pulse-dot"></span> PROTOCOLO DE SUPERVIVENCIA</div>
-        <h1>ZOMBIe<span>LAND</span></h1>
+        <h1>ZOMBI<span>LAND</span></h1>
         <p class="tagline">El mundo cayó. Tú todavía no.</p>
         <div class="menu-buttons">
           <button id="enter-button" class="menu-button primary"><span>▶</span> JUGAR</button>
@@ -36,17 +36,17 @@
         <h2>ELEGÍ TU <span>MODALIDAD</span></h2>
         <p class="shop-intro">Partidas diseñadas para hasta 3 supervivientes.</p>
         <button id="solo-mode" class="mode-option"><b>◎ SOLITARIO</b><small>Entrá solo y sobreviví a las oleadas.</small></button>
-        <button id="match-mode" class="mode-option"><b>◉ EMPAREJAMIENTO</b><small>Partida pública o grupo por invitación · inicia con 2 o 3 jugadores.</small></button>
+        <button id="match-mode" class="mode-option"><b>◉ EMPAREJAMIENTO</b><small>Públicas: emparejamiento automático. Privadas: código de invitación. Inicia con 2 o 3 jugadores.</small></button>
         <div id="match-info" class="match-info hidden">
-          <strong>EMPAREJAMIENTO ONLINE · 2 JUGADORES MÍNIMO · 3 MÁXIMO</strong>
+          <strong>EMPAREJAMIENTO ONLINE · 2 JUGADORES MÍNIMO · 4 MÁXIMO</strong>
           <div class="match-actions">
             <button id="public-match" class="menu-button primary">BUSCAR PARTIDA PÚBLICA</button>
             <button id="create-room" class="menu-button">CREAR GRUPO PRIVADO</button>
             <div class="room-join"><input id="room-code-input" maxlength="6" autocomplete="off" placeholder="CÓDIGO DE SALA"><button id="join-room" class="menu-button">UNIRSE</button></div>
           </div>
           <div id="room-panel" class="room-panel hidden">
-            <div class="room-heading"><span>SALA</span><b id="room-code">------</b><button id="copy-room-code" type="button">COPIAR</button></div>
-            <div id="room-slots" class="match-slots"><span>JUGADOR 1<br><b>ESPERANDO</b></span><span>JUGADOR 2<br><b>ESPERANDO</b></span><span>JUGADOR 3<br><b>ESPERANDO</b></span></div>
+            <div class="room-heading"><span id="room-heading-label">SALA PRIVADA</span><b id="room-code">------</b><button id="copy-room-code" type="button">COPIAR</button></div>
+            <div id="room-slots" class="match-slots"><span>JUGADOR 1<br><b>ESPERANDO</b></span><span>JUGADOR 2<br><b>ESPERANDO</b></span><span>JUGADOR 3<br><b>ESPERANDO</b></span><span>JUGADOR 4<br><b>ESPERANDO</b></span></div>
             <p id="room-status" role="status">Conectando...</p>
             <button id="start-online" class="menu-button primary" disabled>INICIAR PARTIDA</button>
             <button id="leave-room" class="menu-button back-button">SALIR DE LA SALA</button>

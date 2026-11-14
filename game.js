@@ -570,10 +570,16 @@ function update(dt) {
 }
 
 
-// --- Firebase matchmaking (salas de hasta 3 jugadores) ---
+// --- Firebase matchmaking (salas de 2 a 4 jugadores) ---
 const roomFeedback = (message) => { const el = $('match-feedback'); if (el) el.textContent = message; };
 const roomCode = () => Math.random().toString(36).slice(2, 8).toUpperCase();
 const roomPath = (id, child = '') => ref(database, `rooms/${id}${child ? `/${child}` : ''}`);
+let hostRotationTimer = null;
+let latestRoomState = null;
+
+function clearHostRotationTimer() {
+  if (hostRotationTimer) { clearTimeout(hostRotationTimer); hostRotationTimer = null; }
+}
 async function ensureAnonymousAuth() {
   if (auth.currentUser) { currentUser = auth.currentUser; return currentUser; }
   roomFeedback('Conectando con Firebase...');
@@ -581,23 +587,96 @@ async function ensureAnonymousAuth() {
   currentUser = credential.user;
   return currentUser;
 }
-onAuthStateChanged(auth, user => { currentUser = user; if (user) roomFeedback('Conectado. Podés buscar o crear una sala.'); });
+function occupiedRoomSlots(room) {
+  return [1,2,3,4].filter(n => !!room?.slots?.[n]);
+}
+function myRoomSlot(room) {
+  const found = Object.entries(room?.slots || {}).find(([, uid]) => uid === currentUser?.uid);
+  return found ? Number(found[0]) : 0;
+}
+async function rotatePublicHost(room) {
+  if (!currentRoomId || !currentUser || room?.public !== true || room.status !== 'waiting') return;
+  const occupied = occupiedRoomSlots(room);
+  if (occupied.length !== 4 || !room.fullAt) return;
+
+  const oldHost = room.hostUid || null;
+  if (!oldHost || oldHost !== currentUser.uid) return;
+  const history = room.hostHistory || {};
+  const candidates = occupied
+    .map(slot => room.slots[slot])
+    .filter(uid => uid && uid !== oldHost && !history[uid]);
+  if (!candidates.length) {
+    roomFeedback('Todos los demás jugadores ya fueron anfitriones en esta sala.');
+    return;
+  }
+
+  // El anfitrión nuevo se elige al azar. Nadie cambia de slot ni es expulsado.
+  const nextHost = candidates[Math.floor(Math.random() * candidates.length)];
+  await updateData(roomPath(currentRoomId, `hostHistory/${oldHost}`), true);
+  const result = await runTransaction(roomPath(currentRoomId, 'hostUid'), value => {
+    if (value !== oldHost) return;
+    return nextHost;
+  });
+  if (result.committed) {
+    await updateData(roomPath(currentRoomId), { hostRotationAt: Date.now() });
+    roomFeedback('Cambió el anfitrión. El jugador anterior sigue en la partida.');
+  }
+}
+function schedulePublicHostRotation(room) {
+  clearHostRotationTimer();
+  if (room.public !== true || room.status !== 'waiting' || occupiedRoomSlots(room).length !== 4 || !room.fullAt) return;
+  const baseTime = Number(room.hostRotationAt || room.fullAt);
+  const remaining = Math.max(0, baseTime + 15000 - Date.now());
+  hostRotationTimer = setTimeout(async () => {
+    try {
+      const snap = await get(roomPath(currentRoomId));
+      const latest = snap.val();
+      if (latest && latest.public === true && latest.status === 'waiting' && occupiedRoomSlots(latest).length === 4) {
+        await rotatePublicHost(latest);
+      }
+    } catch (error) { console.warn('No se pudo cambiar el anfitrión:', error); }
+  }, remaining);
+}
+async function maintainPublicFullTimer(room) {
+  if (room.public !== true || room.status !== 'waiting') return;
+  const count = occupiedRoomSlots(room).length;
+  const fullAtRef = roomPath(currentRoomId, 'fullAt');
+  if (count === 4 && !room.fullAt) {
+    await runTransaction(fullAtRef, value => value == null ? Date.now() : value);
+  } else if (count < 4 && room.fullAt) {
+    await updateData(roomPath(currentRoomId), { fullAt: null, hostRotationAt: null });
+  }
+}
 function renderRoom(room) {
-  if (!room) { roomFeedback('La sala ya no existe.'); resetRoomUI(); return; }
+  if (!room) { clearHostRotationTimer(); latestRoomState = null; roomFeedback('La sala ya no existe.'); resetRoomUI(); return; }
+  latestRoomState = room;
   $('room-panel').classList.remove('hidden');
-  $('room-code').textContent = currentRoomId || '------';
+  const isPublicRoom = room.public === true;
+  $('room-code').textContent = isPublicRoom ? 'PARTIDA PÚBLICA' : (currentRoomId || '------');
+  $('room-code').classList.toggle('hidden', isPublicRoom);
+  $('copy-room-code').classList.toggle('hidden', isPublicRoom);
+  const roomHeadingLabel = $('room-heading-label');
+  if (roomHeadingLabel) roomHeadingLabel.textContent = isPublicRoom ? 'PARTIDA PÚBLICA' : 'SALA PRIVADA';
   const slots = $('room-slots');
-  slots.innerHTML = [1,2,3].map(n => {
+  slots.innerHTML = [1,2,3,4].map(n => {
     const uid = room.slots?.[n];
     const own = uid && uid === currentUser?.uid;
-    return `<span>JUGADOR ${n}<br><b>${own ? 'VOS' : uid ? 'CONECTADO' : 'ESPERANDO'}</b></span>`;
+    const isHost = uid && uid === room.hostUid;
+    return `<span>JUGADOR ${n}${isHost ? '<br>ANFITRIÓN' : ''}<br><b>${own ? 'VOS' : uid ? 'CONECTADO' : 'ESPERANDO'}</b></span>`;
   }).join('');
-  const count = Object.values(room.slots || {}).filter(Boolean).length;
+  const count = occupiedRoomSlots(room).length;
+  const full = count === 4;
   $('room-status').textContent = room.status === 'playing'
     ? 'PARTIDA INICIADA'
-    : `${count}/3 JUGADORES · MÍNIMO 2 PARA INICIAR`;
-  // El anfitrión puede iniciar apenas haya 2 jugadores; el tercero es opcional.
-  $('start-online').disabled = !roomIsHost || count < 2 || count > 3 || room.status !== 'waiting';
+    : `${count}/4 JUGADORES · MÍNIMO 2 PARA INICIAR${isPublicRoom && full ? ' · CAMBIO DE ANFITRIÓN EN 15 S' : ''}`;
+  const wasHost = roomIsHost;
+  roomIsHost = room.hostUid === currentUser?.uid;
+  currentSlot = myRoomSlot(room) || currentSlot;
+  if (!wasHost && roomIsHost) registerHostDisconnect(currentRoomId).catch(console.warn);
+  $('start-online').disabled = !roomIsHost || count < 2 || count > 4 || room.status !== 'waiting';
+  if (isPublicRoom && count === 4 && room.fullAt) schedulePublicHostRotation(room);
+  else clearHostRotationTimer();
+  if (isPublicRoom && room.status === 'waiting') maintainPublicFullTimer(room).catch(console.warn);
   if (room.status === 'playing' && !running) startOnlineGame(room);
 }
 function watchRoom(id) {
@@ -605,37 +684,95 @@ function watchRoom(id) {
   roomUnsubscribe = onValue(roomPath(id), snap => renderRoom(snap.val()), error => roomFeedback(`Error de sala: ${error.message}`));
 }
 function resetRoomUI() {
+  clearHostRotationTimer();
+  latestRoomState = null;
   currentRoomId = null; currentSlot = 0; roomIsHost = false;
   if (roomUnsubscribe) { roomUnsubscribe(); roomUnsubscribe = null; }
   $('room-panel').classList.add('hidden');
+}
+async function registerHostDisconnect(id) {
+  await onDisconnect(roomPath(id, 'hostUid')).remove();
+  await onDisconnect(roomPath(id, `hostHistory/${currentUser.uid}`)).set(true);
+}
+async function registerSlotDisconnect(id, slot) {
+  await onDisconnect(roomPath(id, `slots/${slot}`)).remove();
+  if (roomIsHost) await registerHostDisconnect(id);
 }
 async function createRoom(isPublic = false) {
   try {
     await ensureAnonymousAuth();
     if (currentRoomId) await leaveRoom();
     const id = roomCode();
-    const room = { hostUid: currentUser.uid, public: isPublic, status: 'waiting', createdAt: Date.now(), slots: { 1: currentUser.uid, 2: null, 3: null } };
+    const room = {
+      hostUid: currentUser.uid, public: isPublic, status: 'waiting',
+      createdAt: Date.now(), fullAt: null, hostRotationAt: null,
+      hostHistory: {},
+      slots: { 1: currentUser.uid, 2: null, 3: null, 4: null }
+    };
     await set(roomPath(id), room);
     currentRoomId = id; currentSlot = 1; roomIsHost = true;
-    await onDisconnect(roomPath(id, 'slots/1')).remove();
-    watchRoom(id); roomFeedback(isPublic ? 'Sala pública creada. Esperando jugadores...' : 'Grupo privado creado. Compartí el código con tus amigos.');
+    if (isPublic) {
+      // Las públicas sobreviven a la desconexión del anfitrión para que otro
+      // jugador pueda ocupar un espacio libre y asumir el puesto 1.
+      await registerSlotDisconnect(id, 1);
+    } else {
+      // Las privadas se cierran si se desconecta su anfitrión; no hay rotación automática.
+      await onDisconnect(roomPath(id)).remove();
+    }
+    watchRoom(id);
+    roomFeedback(isPublic ? 'Buscando jugadores para una partida pública...' : 'Grupo privado creado. Compartí el código con tus amigos.');
   } catch (error) { roomFeedback(`No se pudo crear la sala: ${error.message}`); }
 }
-async function tryJoinRoom(id) {
+async function tryJoinRoom(id, expectedPublic) {
   const snap = await get(roomPath(id));
   if (!snap.exists()) return false;
-  const room = snap.val();
-  if (room.status !== 'waiting') return false;
-  for (const slot of [2,3]) {
+  let room = snap.val();
+  if (room.public !== expectedPublic || room.status !== 'waiting') return false;
+
+  // Cualquier espacio libre sirve. El slot identifica al jugador y no cambia
+  // cuando cambia el rol de anfitrión.
+  let joinedSlot = 0;
+  for (const slot of [1,2,3,4]) {
     const result = await runTransaction(roomPath(id, `slots/${slot}`), value => value == null ? currentUser.uid : undefined);
-    if (result.committed) {
-      currentRoomId = id; currentSlot = slot; roomIsHost = false;
-      await onDisconnect(roomPath(id, `slots/${slot}`)).remove();
-      watchRoom(id); roomFeedback('Te uniste a la sala. Esperá a que el anfitrión inicie.');
-      return true;
+    if (result.committed) { joinedSlot = slot; break; }
+  }
+  if (!joinedSlot) return false;
+
+  currentRoomId = id;
+  currentSlot = joinedSlot;
+  roomIsHost = room.hostUid === currentUser.uid;
+  await registerSlotDisconnect(id, joinedSlot);
+
+  let freshSnap = await get(roomPath(id));
+  let freshRoom = freshSnap.val();
+
+  // Si el anfitrión de una pública se fue, el siguiente que entra puede
+  // asumir el rol desde cualquier slot libre. Los anfitriones anteriores
+  // quedan guardados en hostHistory y no pueden repetir en esta misma sala.
+  if (expectedPublic && !freshRoom.hostUid) {
+    const history = freshRoom.hostHistory || {};
+    const eligible = occupiedRoomSlots(freshRoom)
+      .map(slot => freshRoom.slots[slot])
+      .filter(uid => uid && !history[uid]);
+    if (eligible.includes(currentUser.uid)) {
+      const claim = await runTransaction(roomPath(id, 'hostUid'), value => value == null ? currentUser.uid : undefined);
+      if (claim.committed) {
+        roomIsHost = true;
+        await registerHostDisconnect(id);
+      }
     }
   }
-  return false;
+
+  freshSnap = await get(roomPath(id));
+  freshRoom = freshSnap.val();
+  if (expectedPublic && occupiedRoomSlots(freshRoom).length === 4 && !freshRoom.fullAt) {
+    await updateData(roomPath(id), { fullAt: Date.now(), hostRotationAt: null });
+  }
+  watchRoom(id);
+  roomFeedback(roomIsHost
+    ? 'Te uniste a la partida pública y sos el anfitrión.'
+    : 'Te uniste a la sala. Esperá a que el anfitrión inicie.');
+  return true;
 }
 async function searchPublicMatch() {
   try {
@@ -644,10 +781,10 @@ async function searchPublicMatch() {
     roomFeedback('Buscando una partida pública...');
     const snap = await get(ref(database, 'rooms'));
     if (snap.exists()) {
-      const rooms = snap.val();
-      for (const [id, room] of Object.entries(rooms)) {
-        if (room.public && room.status === 'waiting' && Object.values(room.slots || {}).filter(Boolean).length < 3) {
-          if (await tryJoinRoom(id)) return;
+      for (const [id, room] of Object.entries(snap.val())) {
+        const count = occupiedRoomSlots(room).length;
+        if (room.public === true && room.status === 'waiting' && count < 4) {
+          if (await tryJoinRoom(id, true)) return;
         }
       }
     }
@@ -660,13 +797,14 @@ async function joinPrivateRoom() {
     const id = $('room-code-input').value.trim().toUpperCase();
     if (!/^[A-Z0-9]{6}$/.test(id)) { roomFeedback('Ingresá un código de sala de 6 caracteres.'); return; }
     if (currentRoomId) await leaveRoom();
-    if (!await tryJoinRoom(id)) roomFeedback('No se pudo entrar: el código no existe, está lleno o la partida ya comenzó.');
+    if (!await tryJoinRoom(id, false)) roomFeedback('No se pudo entrar: el código privado no existe, está lleno, el anfitrión se desconectó o la partida ya comenzó.');
   } catch (error) { roomFeedback(`Error al unirse: ${error.message}`); }
 }
 async function leaveRoom() {
   if (!currentRoomId || !currentSlot) { resetRoomUI(); return; }
-  const id = currentRoomId, slot = currentSlot;
+  const id = currentRoomId, slot = currentSlot, wasHost = roomIsHost, wasPublic = latestRoomState?.public === true;
   try {
+    clearHostRotationTimer();
     if (playersUnsubscribe) { playersUnsubscribe(); playersUnsubscribe = null; }
     if (currentUser) {
       await onDisconnect(roomPath(id, `players/${currentUser.uid}`)).cancel();
@@ -676,7 +814,15 @@ async function leaveRoom() {
     onlineStarted = false;
     await onDisconnect(roomPath(id, `slots/${slot}`)).cancel();
     await remove(roomPath(id, `slots/${slot}`));
-    if (roomIsHost) await remove(roomPath(id));
+    if (wasHost && wasPublic) {
+      await updateData(roomPath(id, `hostHistory/${currentUser.uid}`), true);
+      await onDisconnect(roomPath(id, 'hostUid')).cancel();
+      await remove(roomPath(id, 'hostUid'));
+      await updateData(roomPath(id), { fullAt: null, hostRotationAt: null });
+    } else if (wasHost && !wasPublic) {
+      await onDisconnect(roomPath(id)).cancel();
+      await remove(roomPath(id));
+    }
   } catch (error) { console.warn('No se pudo limpiar la sala:', error); }
   resetRoomUI();
 }
@@ -685,20 +831,16 @@ async function startOnlineMatch() {
   try {
     const snap = await get(roomPath(currentRoomId));
     const room = snap.val();
-    const count = Object.values(room?.slots || {}).filter(Boolean).length;
-    if (!room || room.status !== 'waiting') {
-      roomFeedback('La sala ya no está esperando jugadores.');
-      return;
-    }
+    const count = occupiedRoomSlots(room).length;
+    if (!room || room.status !== 'waiting') { roomFeedback('La sala ya no está esperando jugadores.'); return; }
     if (count < 2) { roomFeedback('Necesitás al menos 2 jugadores para iniciar.'); return; }
-    if (count > 3) { roomFeedback('La sala admite un máximo de 3 jugadores.'); return; }
-    // Con 2 jugadores ya se puede iniciar; no hace falta esperar al tercero.
+    if (count > 4) { roomFeedback('La sala admite un máximo de 4 jugadores.'); return; }
     await updateData(roomPath(currentRoomId), { status: 'playing', startedAt: Date.now() });
   } catch (error) { roomFeedback(`No se pudo iniciar: ${error.message}`); }
 }
 function startOnlineGame(room) {
   if (onlineStarted) return;
-  const slot = currentSlot || Object.entries(room.slots || {}).find(([,uid]) => uid === currentUser?.uid)?.[0] || 1;
+  const slot = currentSlot || myRoomSlot(room) || 1;
   currentSlot = Number(slot);
   player.position.copy(spawnPoints[currentSlot - 1]);
   enterGame('online');

@@ -26,3 +26,30 @@ Además de las salas, las reglas ahora permiten que cada usuario autenticado esc
 ## Controles
 - PC: WASD/flechas, ratón, clic para disparar, R recargar, Espacio saltar.
 - Móvil: joystick, arrastrar lado derecho para mirar, botones de disparo y salto.
+
+
+## Correcciones de emparejamiento (noviembre 2026)
+- Las partidas públicas ya no muestran ni comparten código en la interfaz.
+- El buscador público solo se une a salas públicas con el anfitrión todavía ocupando el espacio 1.
+- Los códigos solo sirven para entrar a grupos privados; no se puede entrar a una sala pública mediante el formulario privado.
+- Si el anfitrión se desconecta, Firebase elimina la sala completa mediante onDisconnect, evitando salas huérfanas.
+- Las salas privadas también verifican que el anfitrión siga conectado.
+- Se mantiene el inicio con 2 jugadores y un máximo de 3.
+
+
+## Salas online: 2 a 4 jugadores
+- Todas las salas admiten de 2 a 4 jugadores.
+- El jugador del espacio 1 es el anfitrión y tiene el botón para iniciar.
+- En salas públicas, cuando se ocupan los cuatro espacios comienza un plazo de 15 segundos. Si el anfitrión no inicia, el anfitrión pasa al siguiente jugador conectado.
+- La rotación automática solo existe en salas públicas. Las salas privadas no tienen cuenta regresiva ni cambio automático de anfitrión.
+- Si el anfitrión de una sala pública se desconecta, la sala permanece disponible; el siguiente jugador puede reclamar el espacio 1 si está libre. Las salas privadas se eliminan cuando se desconecta su anfitrión.
+- Actualizá las reglas de Realtime Database con el archivo `firebase-database.rules.json` incluido.
+
+
+## Rotación del anfitrión en partidas públicas
+- Al completarse los cuatro espacios, el anfitrión tiene 15 segundos para iniciar.
+- Si no inicia, se elige al azar a otro jugador conectado como anfitrión.
+- El anfitrión anterior permanece en la partida; no se expulsa ni cambia su número de jugador.
+- Una persona que ya fue anfitriona queda registrada en `hostHistory` y no puede volver a ser anfitriona en esa misma sala pública, aunque salga y vuelva a entrar.
+- Si sale y entra a otra sala pública, puede ser anfitriona allí normalmente.
+- En salas privadas no existe temporizador ni rotación automática.
