@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#07131b" />
+  <meta name="description" content="Sobrevive a las hordas en ZombiLand, una aventura 3D de acción." />
+  <title>ZombiLand — Sobrevive a la horda</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main id="game-shell">
+    <div id="scene-root" aria-label="Mundo 3D de ZombiLand"></div>
+
+    <section id="menu-screen" class="screen active" aria-label="Menú principal">
+      <div class="menu-backdrop"></div>
+      <div class="menu-content">
+        <div class="eyebrow"><span class="pulse-dot"></span> PROTOCOLO DE SUPERVIVENCIA</div>
+        <h1>ZOMBI<span>LAND</span></h1>
+        <p class="tagline">El mundo cayó. Tú todavía no.</p>
+        <div class="menu-buttons">
+          <button id="enter-button" class="menu-button primary"><span>▶</span> JUGAR</button>
+          <button id="shop-button" class="menu-button"><span>✦</span> TIENDA</button>
+          <button id="exit-button" class="menu-button"><span>↗</span> SALIR</button>
+        </div>
+        <div class="menu-foot"><span>WASD PARA MOVERTE</span><i></i><span>RATÓN PARA APUNTAR</span><i></i><span>R PARA RECARGAR</span></div>
+      </div>
+      <div class="menu-side-note">SECTOR 07 <b>·</b> ZONA DE CUARENTENA</div>
+    </section>
+
+
+    <section id="mode-screen" class="screen modal-screen" aria-label="Elegir modo de juego">
+      <div class="mode-panel">
+        <button class="close-button" id="close-mode" aria-label="Volver">×</button>
+        <div class="eyebrow">PROTOCOLO DE PARTIDA</div>
+        <h2>ELEGÍ TU <span>MODALIDAD</span></h2>
+        <p class="shop-intro">Partidas diseñadas para hasta 3 supervivientes.</p>
+        <button id="solo-mode" class="mode-option"><b>◎ SOLITARIO</b><small>Entrá solo y sobreviví a las oleadas.</small></button>
+        <button id="match-mode" class="mode-option"><b>◉ EMPAREJAMIENTO</b><small>Partida pública o grupo por invitación · inicia con 2 o 3 jugadores.</small></button>
+        <div id="match-info" class="match-info hidden">
+          <strong>EMPAREJAMIENTO ONLINE · 2 JUGADORES MÍNIMO · 3 MÁXIMO</strong>
+          <div class="match-actions">
+            <button id="public-match" class="menu-button primary">BUSCAR PARTIDA PÚBLICA</button>
+            <button id="create-room" class="menu-button">CREAR GRUPO PRIVADO</button>
+            <div class="room-join"><input id="room-code-input" maxlength="6" autocomplete="off" placeholder="CÓDIGO DE SALA"><button id="join-room" class="menu-button">UNIRSE</button></div>
+          </div>
+          <div id="room-panel" class="room-panel hidden">
+            <div class="room-heading"><span>SALA</span><b id="room-code">------</b><button id="copy-room-code" type="button">COPIAR</button></div>
+            <div id="room-slots" class="match-slots"><span>JUGADOR 1<br><b>ESPERANDO</b></span><span>JUGADOR 2<br><b>ESPERANDO</b></span><span>JUGADOR 3<br><b>ESPERANDO</b></span></div>
+            <p id="room-status" role="status">Conectando...</p>
+            <button id="start-online" class="menu-button primary" disabled>INICIAR PARTIDA</button>
+            <button id="leave-room" class="menu-button back-button">SALIR DE LA SALA</button>
+          </div>
+          <p id="match-feedback" role="status">Iniciá sesión anónima para buscar jugadores.</p>
+          <button id="back-modes" class="menu-button back-button">VOLVER A MODOS</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="shop-screen" class="screen modal-screen" aria-label="Tienda">
+      <div class="shop-panel">
+        <button class="close-button" data-close-shop aria-label="Cerrar tienda">×</button>
+        <div class="eyebrow">SUMINISTROS DEL REFUGIO</div>
+        <h2>TIENDA <span>DE CAMPO</span></h2>
+        <p class="shop-intro">Invierte tus monedas. Cada mejora puede ser la diferencia entre vivir y convertirte en uno de ellos.</p>
+        <div class="shop-wallet">◉ <span id="shop-coins">0</span> MONEDAS</div>
+        <div class="shop-items">
+          <article class="shop-item"><div class="item-icon med-icon">✚</div><div><h3>Botiquín de campaña</h3><p>Recupera 25 puntos de vida.</p></div><button data-buy="medkit" data-cost="30">30 ◉</button></article>
+          <article class="shop-item"><div class="item-icon ammo-icon">▰</div><div><h3>Cargador reforzado</h3><p>Aumenta la capacidad del cargador.</p></div><button data-buy="ammo" data-cost="45">45 ◉</button></article>
+          <article class="shop-item"><div class="item-icon damage-icon">⌖</div><div><h3>Munición perforante</h3><p>Mejora el daño de tus disparos.</p></div><button data-buy="damage" data-cost="60">60 ◉</button></article>
+        </div>
+        <button class="menu-button back-button" data-close-shop>VOLVER AL JUEGO</button>
+      </div>
+    </section>
+
+    <section id="hud" aria-label="Interfaz de juego" class="hidden">
+      <div class="top-shade"></div>
+      <div class="player-hud hud-card">
+        <div class="hud-label"><span class="status-dot"></span> SUPERVIVIENTE <span id="player-level">LVL 01</span></div>
+        <div class="health-line"><span>♥</span><b id="player-health">100</b><small>/100</small></div>
+        <div class="health-track"><i id="player-health-fill"></i></div>
+      </div>
+      <div class="wave-hud"><span class="wave-kicker">OLEADA</span><strong id="wave-number">01</strong><span class="wave-divider"></span><span id="wave-status">PREPÁRATE</span><span id="fps-counter">60 FPS</span></div>
+      <div class="right-hud">
+        <div class="coin-counter hud-card"><span class="coin-symbol">◉</span><strong id="coin-count">0</strong><small>MONEDAS</small></div>
+        <div class="weapon-card hud-card"><div class="weapon-name"><span>ARMAMENTO</span><b>V-9 <small>CARABINA</small></b></div><div class="ammo-count"><strong id="ammo-count">12</strong><span>/ <i id="ammo-total">12</i></span></div><div class="ammo-track"><i id="ammo-fill"></i></div><div id="reload-label">R · RECARGAR</div></div>
+      </div>
+      <div id="crosshair"><i></i><i></i><i></i><i></i><b></b></div>
+      <div id="toast" class="toast"></div>
+      <div id="enemy-bars" aria-hidden="true"></div>
+      <div id="damage-flash"></div>
+      <button id="pause-button" class="pause-button" aria-label="Volver al menú">Ⅱ</button>
+      <div id="mobile-controls">
+        <div id="joystick" class="joystick" aria-label="Joystick para moverse"><div id="joystick-knob"></div></div>
+        <div class="action-buttons">
+          <button id="jump-button" class="action-button jump-button"><span>↑</span><small>SALTAR</small></button>
+          <button id="fire-button" class="action-button fire-button"><span>✹</span><small>DISPARAR</small></button>
+        </div>
+      </div>
+      <div id="center-message" class="center-message"></div>
+    </section>
+
+    <div id="loading-screen" class="loading-screen"><div class="loading-mark">Z</div><span>PREPARANDO LA ZONA...</span><div class="loading-bar"><i></i></div></div>
+  </main>
+  <script type="module" src="game.js"></script>
+</body>
+</html>
